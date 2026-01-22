@@ -92,54 +92,9 @@ func RunSessionInBackground(phone string, apiID int32, apiHash string, globalCtx
 		log.Fatalf("Не удалось создать сессию для %s: %v", phone, err)
 	}
 
-	done := make(chan error, 1)
-
-	go func() {
-		defer close(done)
-		if err := sess.Start(globalCtx); err != nil {
-			done <- fmt.Errorf("сессия %s завершилась с ошибкой: %w", phone, err)
-			return
-		}
-		// Если Start вышел без ошибки → сессия закрыта нормально (по ctx.Done())
-		done <- nil
-	}()
-
-	// Теперь ждём авторизации (или завершения/ошибки горутины)
-	const maxWait = 6 * time.Minute // обычно хватает даже на ввод кода + 2FA
-	const checkInterval = 400 * time.Millisecond
-
-	ticker := time.NewTicker(checkInterval)
-	defer ticker.Stop()
-
-	deadline := time.Now().Add(maxWait)
-
-	time.Sleep(5 * time.Second)
-
-	for {
-		select {
-		case err := <-done:
-			if err != nil {
-				return nil, err
-			}
-			return nil, fmt.Errorf("сессия %s неожиданно завершилась без авторизации", phone)
-
-		case <-ticker.C:
-
-			authorized, aErr := sess.client.IsAuthorized()
-			if aErr != nil {
-				return nil, fmt.Errorf("ошибка проверки авторизации %s: %w", phone, aErr)
-			}
-			if authorized {
-				log.Printf("[messenger %s] Успешно авторизован (в RunSessionInBackground)", phone)
-				return sess, nil // ← возвращаем только теперь
-			}
-
-			if time.Now().After(deadline) {
-				return nil, fmt.Errorf("таймаут ожидания авторизации для %s (> %v)", phone, maxWait)
-			}
-
-		case <-globalCtx.Done():
-			return nil, fmt.Errorf("контекст отменён во время ожидания авторизации %s: %w", phone, globalCtx.Err())
-		}
+	if err := sess.Start(globalCtx); err != nil {
+		return nil, fmt.Errorf("сессия %s завершилась с ошибкой: %w", phone, err)
 	}
+
+	return sess, nil
 }
