@@ -3,10 +3,11 @@ package messenger
 import (
 	"context"
 	"fmt"
-	"github.com/AGTYMC/telegram-for-cms/telegram_cms/storage"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/AGTYMC/telegram-for-cms/telegram_cms/storage"
 
 	"github.com/amarnathcjd/gogram/telegram"
 )
@@ -40,7 +41,11 @@ func NewSession(phone string, apiID int32, apiHash string) (*Session, error) {
 
 func CreateTelegramClient(phone string, apiID int32, apiHash string) *Client {
 	ctx, cancel := context.WithCancel(context.Background())
-	sess := RunSessionInBackground(phone, apiID, apiHash, ctx)
+	sess, err := RunSessionInBackground(phone, apiID, apiHash, ctx)
+	if err != nil {
+		fmt.Println(err)
+		cancel()
+	}
 	return &Client{Cancel: cancel, Session: sess}
 }
 

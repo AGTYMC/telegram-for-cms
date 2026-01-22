@@ -17,50 +17,13 @@ type Session struct {
 	done   chan struct{}
 }
 
-/*
-	func (s *Session) Start(ctx context.Context) error {
-		// Подключаемся
-		if _, err := s.client.Conn(); err != nil {
-			return fmt.Errorf("connect: %w", err)
-		}
-
-		// Авторизация (интерактивная при необходимости)
-		_, err := s.client.Login(s.Phone)
-		if err != nil {
-			if strings.Contains(err.Error(), "PHONE_NUMBER_INVALID") {
-				return fmt.Errorf("номер телефона %s некорректен", s.Phone)
-			}
-			if strings.Contains(err.Error(), "FLOOD_WAIT") {
-				return fmt.Errorf("flood wait при авторизации %s: %w", s.Phone, err)
-			}
-			return fmt.Errorf("login failed for %s: %w", s.Phone, err)
-		}
-
-		fmt.Printf("[messenger %s] Успешно авторизован\n", s.Phone)
-
-		// Запускаем цикл обработки команд
-		go s.worker()
-
-		// Ожидаем внешней остановки
-		<-ctx.Done()
-
-		err = s.client.Disconnect()
-		if err != nil {
-			return err
-		}
-
-		close(s.done)
-		time.Sleep(300 * time.Millisecond)
-		return nil
-	}
-*/
 func (s *Session) Start(ctx context.Context) error {
 	// Подключаемся
 	if _, err := s.client.Conn(); err != nil {
 		return fmt.Errorf("connect: %w", err)
 	}
 
-	// Запускаем процесс авторизации
+	// Авторизация (интерактивная при необходимости)
 	_, err := s.client.Login(s.Phone)
 	if err != nil {
 		if strings.Contains(err.Error(), "PHONE_NUMBER_INVALID") {
@@ -72,44 +35,22 @@ func (s *Session) Start(ctx context.Context) error {
 		return fmt.Errorf("login failed for %s: %w", s.Phone, err)
 	}
 
-	// Ждём, пока сессия действительно авторизуется
-	const maxWait = 5 * time.Minute
-	const checkInterval = 500 * time.Millisecond
+	fmt.Printf("[messenger %s] Успешно авторизован\n", s.Phone)
 
-	ticker := time.NewTicker(checkInterval)
-	defer ticker.Stop()
+	// Запускаем цикл обработки команд
+	go s.worker()
 
-	deadline := time.Now().Add(maxWait)
+	// Ожидаем внешней остановки
+	<-ctx.Done()
 
-	for {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("контекст отменён во время ожидания авторизации: %w", ctx.Err())
-
-		case <-ticker.C:
-			if ok, _ := s.client.IsAuthorized(); ok {
-				fmt.Printf("[messenger %s] Успешно авторизован\n", s.Phone)
-
-				// Только теперь запускаем обработчик команд / обновлений
-				go s.worker()
-
-				// Ожидаем сигнала на остановку
-				<-ctx.Done()
-
-				if err := s.client.Disconnect(); err != nil {
-					return fmt.Errorf("ошибка отключения: %w", err)
-				}
-
-				close(s.done)
-				time.Sleep(300 * time.Millisecond)
-				return nil
-			}
-
-			if time.Now().After(deadline) {
-				return fmt.Errorf("таймаут ожидания авторизации для %s (%v)", s.Phone, maxWait)
-			}
-		}
+	err = s.client.Disconnect()
+	if err != nil {
+		return err
 	}
+
+	close(s.done)
+	time.Sleep(300 * time.Millisecond)
+	return nil
 }
 
 func (s *Session) SendCommand(cmd Command) <-chan Result {
@@ -145,17 +86,57 @@ func (s *Session) worker() {
 	}
 }
 
-func RunSessionInBackground(phone string, apiID int32, apiHash string, globalCtx context.Context) *Session {
+func RunSessionInBackground(phone string, apiID int32, apiHash string, globalCtx context.Context) (*Session, error) {
 	sess, err := NewSession(phone, apiID, apiHash)
 	if err != nil {
 		log.Fatalf("Не удалось создать сессию для %s: %v", phone, err)
 	}
 
+	done := make(chan error, 1)
+
 	go func() {
+		defer close(done)
 		if err := sess.Start(globalCtx); err != nil {
-			log.Printf("Сессия %s завершилась с ошибкой: %v", phone, err)
+			done <- fmt.Errorf("сессия %s завершилась с ошибкой: %w", phone, err)
+			return
 		}
+		// Если Start вышел без ошибки → сессия закрыта нормально (по ctx.Done())
+		done <- nil
 	}()
 
-	return sess
+	// Теперь ждём авторизации (или завершения/ошибки горутины)
+	const maxWait = 6 * time.Minute // обычно хватает даже на ввод кода + 2FA
+	const checkInterval = 400 * time.Millisecond
+
+	ticker := time.NewTicker(checkInterval)
+	defer ticker.Stop()
+
+	deadline := time.Now().Add(maxWait)
+
+	for {
+		select {
+		case err := <-done:
+			if err != nil {
+				return nil, err
+			}
+			return nil, fmt.Errorf("сессия %s неожиданно завершилась без авторизации", phone)
+
+		case <-ticker.C:
+			authorized, aErr := sess.client.IsAuthorized()
+			if aErr != nil {
+				return nil, fmt.Errorf("ошибка проверки авторизации %s: %w", phone, aErr)
+			}
+			if authorized {
+				log.Printf("[messenger %s] Успешно авторизован (в RunSessionInBackground)", phone)
+				return sess, nil // ← возвращаем только теперь
+			}
+
+			if time.Now().After(deadline) {
+				return nil, fmt.Errorf("таймаут ожидания авторизации для %s (> %v)", phone, maxWait)
+			}
+
+		case <-globalCtx.Done():
+			return nil, fmt.Errorf("контекст отменён во время ожидания авторизации %s: %w", phone, globalCtx.Err())
+		}
+	}
 }
