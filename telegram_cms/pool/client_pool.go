@@ -1,14 +1,13 @@
 package pool
 
 import (
-	"telegram-for-cms/telegram_cms/messenger"
+	"github.com/AGTYMC/telegram-for-cms/telegram_cms/messenger"
 )
 
 type ClientPool struct {
 	clients map[string]*messenger.Client
 }
 
-// NewSessionPool Конструктор
 func NewClientPool() *ClientPool {
 	return &ClientPool{
 		clients: make(map[string]*messenger.Client),

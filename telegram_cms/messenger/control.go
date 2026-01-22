@@ -3,9 +3,9 @@ package messenger
 import (
 	"context"
 	"fmt"
+	"github.com/AGTYMC/telegram-for-cms/telegram_cms/storage"
 	"os"
 	"path/filepath"
-	"telegram-for-cms/telegram_cms/storage"
 	"time"
 
 	"github.com/amarnathcjd/gogram/telegram"
