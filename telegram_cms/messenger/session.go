@@ -113,6 +113,8 @@ func RunSessionInBackground(phone string, apiID int32, apiHash string, globalCtx
 
 	deadline := time.Now().Add(maxWait)
 
+	time.Sleep(5 * time.Second)
+
 	for {
 		select {
 		case err := <-done:
@@ -122,6 +124,7 @@ func RunSessionInBackground(phone string, apiID int32, apiHash string, globalCtx
 			return nil, fmt.Errorf("сессия %s неожиданно завершилась без авторизации", phone)
 
 		case <-ticker.C:
+
 			authorized, aErr := sess.client.IsAuthorized()
 			if aErr != nil {
 				return nil, fmt.Errorf("ошибка проверки авторизации %s: %w", phone, aErr)
