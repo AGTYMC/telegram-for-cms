@@ -17,47 +17,46 @@ type Session struct {
 	done   chan struct{}
 }
 
-func (s *Session) Start(ctx context.Context) error {
+func (s *Session) Start(ctx context.Context, result chan<- Result) Result {
 	// Подключаемся
 	if _, err := s.client.Conn(); err != nil {
-		return fmt.Errorf("connect: %w", err)
+		return Result{Success: false, Err: err}
 	}
 
 	// Авторизация (интерактивная при необходимости)
 	_, err := s.client.Login(s.Phone)
 	if err != nil {
 		if strings.Contains(err.Error(), "PHONE_NUMBER_INVALID") {
-			return fmt.Errorf("номер телефона %s некорректен", s.Phone)
+			return Result{Success: false, Err: err, Message: "PHONE_NUMBER_INVALID"}
 		}
 		if strings.Contains(err.Error(), "FLOOD_WAIT") {
-			return fmt.Errorf("flood wait при авторизации %s: %w", s.Phone, err)
+			return Result{Success: false, Err: err, Message: "FLOOD_WAIT"}
 		}
-		return fmt.Errorf("login failed for %s: %w", s.Phone, err)
+		return Result{Success: false, Err: err, Message: "ERROR"}
 	}
 
-	fmt.Printf("[messenger %s] Успешно авторизован\n", s.Phone)
+	// Успешная авторизация
+	result <- Result{Success: true, Message: fmt.Sprintf("[messenger %s] Успешно авторизован\n", s.Phone)}
 
-	// Запускаем цикл обработки команд
+	// Цикл обработки команд
 	go s.worker()
 
 	// Ожидаем внешней остановки
 	<-ctx.Done()
 
-	err = s.client.Disconnect()
-	if err != nil {
-		return err
+	// Завершаем соединение
+	if err = s.client.Disconnect(); err != nil {
+		return Result{Success: false, Err: err, Message: "DISCONNECT"}
 	}
 
 	close(s.done)
+	close(result)
+
 	time.Sleep(300 * time.Millisecond)
-	return nil
+	return Result{Success: true, Err: nil}
 }
 
 func (s *Session) SendCommand(cmd Command) <-chan Result {
-	// небольшая задержка оставлена для совместимости с твоим стилем,
-	// но в большинстве случаев её можно убрать
-	time.Sleep(400 * time.Millisecond)
-
 	select {
 	case s.cmdCh <- cmd:
 		return cmd.Result()
@@ -89,11 +88,22 @@ func (s *Session) worker() {
 func RunSessionInBackground(phone string, apiID int32, apiHash string, globalCtx context.Context) (*Session, error) {
 	sess, err := NewSession(phone, apiID, apiHash)
 	if err != nil {
-		log.Fatalf("Не удалось создать сессию для %s: %v", phone, err)
+		return nil, fmt.Errorf("не удалось создать сессию для %s: %w", phone, err)
 	}
 
-	if err := sess.Start(globalCtx); err != nil {
-		return nil, fmt.Errorf("сессия %s завершилась с ошибкой: %w", phone, err)
+	//Канал с результатом
+	result := make(chan Result, 1)
+
+	//Запускаем в отдельной горутине, где получаем результат авторизации
+	go func() {
+		if res := sess.Start(globalCtx, result); res.Success {
+			return
+		}
+	}()
+
+	//Ожидаем результат авторизации
+	if res := <-result; !res.Success {
+		return nil, res.Err
 	}
 
 	return sess, nil

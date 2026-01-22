@@ -24,6 +24,9 @@ func NewSession(phone string, apiID int32, apiHash string) (*Session, error) {
 		AppHash:  apiHash,
 		Session:  sessionPath,
 		LogLevel: telegram.ErrorLevel,
+		//DataCenter: 2,
+		//TestMode:   true,
+		//IpAddr:     "149.154.167.40:443",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create client: %w", err)
@@ -43,7 +46,7 @@ func CreateTelegramClient(phone string, apiID int32, apiHash string) *Client {
 	ctx, cancel := context.WithCancel(context.Background())
 	sess, err := RunSessionInBackground(phone, apiID, apiHash, ctx)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("Create telegram client error: %v\n", err)
 		cancel()
 	}
 	return &Client{Cancel: cancel, Session: sess}
