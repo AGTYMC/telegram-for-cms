@@ -24,7 +24,7 @@ func checkContact(phone string, client *telegram.Client) (*telegram.UserObj, err
 	return nil, nil
 }
 
-func getUser(userId int64, client *telegram.Client) (*telegram.UserObj, error) {
+func getContact(userId int64, client *telegram.Client) (*telegram.UserObj, error) {
 	user, err := client.GetUser(userId)
 	if err != nil {
 		return nil, err
