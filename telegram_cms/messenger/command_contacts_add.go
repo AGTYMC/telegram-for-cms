@@ -44,18 +44,18 @@ func (c *ContactsAddCmd) Execute(client *telegram.Client) error {
 	})
 
 	if err != nil {
-		c.resultChan <- Result{Success: false, Err: fmt.Errorf("resolve %q: %w", c.phone, err)}
+		c.resultChan <- Result{Success: false, Err: fmt.Errorf("add contact error %q: %w", c.phone, err)}
 		return err
 	}
 
 	if len(imported.Imported) == 0 {
-		c.resultChan <- Result{Success: false, Err: fmt.Errorf("imported contact list is empty")}
-		return fmt.Errorf("imported contact list is empty")
+		c.resultChan <- Result{Success: false, Err: fmt.Errorf("number is not registered in telegram: %s", c.phone)}
+		return fmt.Errorf("number is not registered in telegram: %s", c.phone)
 	}
 
-	user, err := getUser(imported.Imported[0].UserID, client)
+	user, err := getContact(imported.Imported[0].UserID, client)
 	if err != nil {
-		c.resultChan <- Result{Success: false, Err: fmt.Errorf("resolve %q: %w", c.phone, err)}
+		c.resultChan <- Result{Success: false, Err: fmt.Errorf("get contact error %q: %w", c.phone, err)}
 		return err
 	}
 
