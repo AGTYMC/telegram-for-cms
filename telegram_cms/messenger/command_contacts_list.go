@@ -10,7 +10,7 @@ type ContactsListCmd struct {
 	resultChan chan Result
 }
 
-func NewListContactsCmd() *ContactsListCmd {
+func NewContactsListCmd() *ContactsListCmd {
 	return &ContactsListCmd{
 		resultChan: make(chan Result, 1),
 	}
@@ -27,31 +27,12 @@ func (c *ContactsListCmd) Execute(client *telegram.Client) error {
 		return err
 	}
 
-	var data []map[string]any
+	var data = make(map[int64]*telegram.UserObj)
 
 	if obj, ok := contactsObj.(*telegram.ContactsContactsObj); ok {
-		fmt.Printf("[contacts] найдено сохранённых: %d\n", obj.SavedCount)
-
-		for _, contact := range obj.Contacts {
-			fmt.Printf("  • %d (mutual:%v)\n", contact.UserID, contact.Mutual)
-		}
-
 		for _, user := range obj.Users {
 			if u, ok := user.(*telegram.UserObj); ok {
-				name := u.FirstName
-				if u.LastName != "" {
-					name += " " + u.LastName
-				}
-				fmt.Printf("  → %d | %s | @%s | phone:%s\n",
-					u.ID, name, u.Username, u.Phone)
-
-				data = append(data, map[string]any{
-					"id":       u.ID,
-					"name":     name,
-					"username": u.Username,
-					"phone":    u.Phone,
-					"mutual":   false, // можно уточнить, если нужно
-				})
+				data[u.ID] = u
 			}
 		}
 
