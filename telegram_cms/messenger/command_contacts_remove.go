@@ -23,7 +23,7 @@ func (c *ContactsRemoveCmd) Result() <-chan Result {
 }
 
 func (c *ContactsRemoveCmd) Execute(client *telegram.Client) error {
-	user, err := getUser(c.userId, client)
+	user, err := getContact(c.userId, client)
 	if err != nil {
 		c.resultChan <- Result{Success: false, Err: fmt.Errorf("GetContact() resolve %q: %w", c.userId, err)}
 		return err
