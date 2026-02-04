@@ -39,7 +39,7 @@ func (c *ContactsAddCmd) Execute(client *telegram.Client) error {
 			Phone:     c.phone,
 			FirstName: c.firstName,
 			LastName:  c.lastName,
-			ClientID:  0,
+			ClientID:  rand.Int63(),
 		},
 	})
 
