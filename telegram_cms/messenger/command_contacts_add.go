@@ -2,6 +2,7 @@ package messenger
 
 import (
 	"fmt"
+	"math/rand"
 
 	"github.com/amarnathcjd/gogram/telegram"
 )
