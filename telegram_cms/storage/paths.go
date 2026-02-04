@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -10,8 +11,14 @@ const (
 )
 
 func SessionFilePath(phone string) string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	dir := filepath.Dir(exe)
+
 	clean := strings.ReplaceAll(phone, "+", "")
 	clean = strings.ReplaceAll(clean, " ", "")
 	clean = strings.ReplaceAll(clean, "-", "")
-	return filepath.Join(SessionsDir, clean+".session")
+	return filepath.Join(dir, SessionsDir, clean+".session")
 }
