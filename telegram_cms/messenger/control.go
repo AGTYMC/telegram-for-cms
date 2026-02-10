@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/AGTYMC/telegram-for-cms/telegram_cms/storage"
+	"github.com/agtymc/telegram-for-cms/telegram_cms/storage"
 
 	"github.com/amarnathcjd/gogram/telegram"
 )

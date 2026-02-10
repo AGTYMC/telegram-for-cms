@@ -1,7 +1,7 @@
 package pool
 
 import (
-	"github.com/AGTYMC/telegram-for-cms/telegram_cms/messenger"
+	"github.com/agtymc/telegram-for-cms/telegram_cms/messenger"
 )
 
 type ClientPool struct {
